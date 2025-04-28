@@ -1,0 +1,118 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - 'v[0-9]+.[0-9]+.[0-9]+*'
+    workflow_dispatch:
+        inputs:
+            version:
+                description: '版本号 (例如: 1.0.0)'
+                required: true
+                default: ''
+
+jobs:
+    test:
+        name: Test Package
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Dart SDK
+              uses: dart-lang/setup-dart@v1
+              with:
+                  sdk: '3.4.0'
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.29.3'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: flutter pub get
+
+            - name: Run tests
+              run: flutter test
+
+            - name: Analyze code
+              run: flutter analyze
+
+    publish:
+        name: Publish to Pub.dev
+        needs: test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Dart SDK
+              uses: dart-lang/setup-dart@v1
+              with:
+                  sdk: '3.4.0'
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.29.3'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: flutter pub get
+
+            - name: Setup Pub Credentials
+              run: |
+                  mkdir -p $HOME/.config/dart
+                  cat <<EOF > $HOME/.config/dart/pub-credentials.json
+                  {
+                    "accessToken":"${{ secrets.PUB_DEV_ACCESS_TOKEN }}",
+                    "refreshToken":"${{ secrets.PUB_DEV_REFRESH_TOKEN }}",
+                    "tokenEndpoint":"https://accounts.google.com/o/oauth2/token",
+                    "scopes":["openid","https://www.googleapis.com/auth/userinfo.email"],
+                    "expiration": 1613868008278
+                  }
+                  EOF
+
+            - name: Publish to Pub.dev
+              run: flutter pub publish --force
+
+    github_release:
+        name: Create GitHub Release
+        needs: publish
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Get version from tag
+              id: get_version
+              run: |
+                  if [ "${{ github.event_name }}" = "push" ]; then
+                    VERSION=${GITHUB_REF#refs/tags/v}
+                  else
+                    VERSION=${{ github.event.inputs.version }}
+                  fi
+                  echo "VERSION=$VERSION" >> $GITHUB_ENV
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Generate changelog
+              id: changelog
+              uses: metcalfc/changelog-generator@v4.1.0
+              with:
+                  mytoken: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Create Release
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ env.VERSION }}
+                  name: 版本 ${{ env.VERSION }}
+                  body: |
+                      # kysion_storage v${{ env.VERSION }}
+
+                      ## 更新内容
+
+                      ${{ steps.changelog.outputs.changelog }}
+                  draft: false
+                  prerelease: false
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

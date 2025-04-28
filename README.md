@@ -35,7 +35,7 @@ flutter pub get
 
 Kysion Storage adopts a layered architecture design, implementing high scalability and testability:
 
-```
+```txt
 interfaces.dart   ← Define interfaces and types
     ↑
     ├── models.dart       ← Data models

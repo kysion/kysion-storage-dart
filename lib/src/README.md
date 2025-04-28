@@ -19,7 +19,7 @@ A powerful, flexible, and type-safe local storage solution supporting multiple s
 
 The Storage module adopts a layered architecture design, implementing high scalability and testability:
 
-```
+```txt
 interfaces.dart   ← Define interfaces and types
     ↑
     ├── models.dart       ← Data models

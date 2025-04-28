@@ -27,6 +27,15 @@ jobs:
             - uses: actions/checkout@v4
               with:
                   token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+                  fetch-depth: 0
+
+            - name: Check token
+              run: |
+                  if [ -z "${{ secrets.PERSONAL_ACCESS_TOKEN }}" ]; then
+                    echo "::error::未设置PERSONAL_ACCESS_TOKEN，无法推送更改"
+                    echo "请在仓库设置 -> Secrets -> Actions 中添加PERSONAL_ACCESS_TOKEN"
+                    exit 1
+                  fi
 
             - name: Setup Dart SDK
               uses: dart-lang/setup-dart@v1
@@ -37,6 +46,12 @@ jobs:
               run: |
                   git config --global user.name "GitHub Actions"
                   git config --global user.email "actions@github.com"
+
+            - name: Display current branch
+              run: |
+                  echo "当前分支: $(git branch --show-current)"
+                  echo "提交历史:"
+                  git log --oneline -n 5
 
             - name: Get current version
               id: current_version
@@ -49,6 +64,10 @@ jobs:
               id: new_version
               run: |
                   if [ "${{ github.event.inputs.version_type }}" = "custom" ]; then
+                    if [ -z "${{ github.event.inputs.custom_version }}" ]; then
+                      echo "::error::选择了自定义版本类型，但未提供自定义版本号"
+                      exit 1
+                    fi
                     NEW_VERSION="${{ github.event.inputs.custom_version }}"
                   else
                     IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
@@ -77,18 +96,40 @@ jobs:
             - name: Update pubspec.yaml
               run: |
                   sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+                  echo "已更新pubspec.yaml中的版本号为 $NEW_VERSION"
+                  grep "version:" pubspec.yaml
 
             - name: Commit changes
               run: |
                   git add pubspec.yaml
                   git commit -m "chore: 更新版本到 $NEW_VERSION"
+                  echo "推送更改..."
                   git push
+                  if [ $? -ne 0 ]; then
+                    echo "::error::推送失败！请检查PERSONAL_ACCESS_TOKEN权限"
+                    exit 1
+                  fi
+                  echo "✅ 成功推送版本更新"
 
             - name: Create version tag
               run: |
+                  echo "创建标签 v$NEW_VERSION"
                   git tag -a v$NEW_VERSION -m "版本 $NEW_VERSION"
+                  echo "推送标签..."
                   git push origin v$NEW_VERSION
+                  if [ $? -ne 0 ]; then
+                    echo "::error::推送标签失败！请检查PERSONAL_ACCESS_TOKEN权限"
+                    exit 1
+                  fi
+                  echo "✅ 成功创建并推送标签"
+
+            - name: Wait for tag processing
+              run: |
+                  echo "等待GitHub处理标签推送（10秒）..."
+                  sleep 10
 
             - name: Trigger release workflow
               run: |
                   echo "版本更新成功！已创建标签 v$NEW_VERSION 并触发发布工作流。"
+                  echo "注意：请检查Actions标签页中是否有对应的Release工作流被触发。"
+                  echo "如果没有自动触发，请检查工作流配置和权限设置。"

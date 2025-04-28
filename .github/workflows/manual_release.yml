@@ -1,0 +1,31 @@
+name: Manual Release Test
+
+on:
+    workflow_dispatch:
+        inputs:
+            version:
+                description: '测试发布版本号'
+                required: true
+                default: '0.0.1'
+
+jobs:
+    create_tag:
+        name: Create Test Tag
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  token: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Set Git identity
+              run: |
+                  git config --global user.name "GitHub Actions"
+                  git config --global user.email "actions@github.com"
+
+            - name: Create and push tag
+              run: |
+                  VERSION="${{ github.event.inputs.version }}"
+                  echo "创建测试标签 v$VERSION"
+                  git tag -a v$VERSION -m "测试版本 $VERSION"
+                  git push origin v$VERSION
+                  echo "标签已推送，检查是否触发release工作流"

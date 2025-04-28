@@ -1,0 +1,46 @@
+name: Release Credentials Check
+
+on:
+    workflow_dispatch:
+
+jobs:
+    check_credentials:
+        name: Check Release Credentials
+        runs-on: ubuntu-latest
+        steps:
+            - name: Check for PUB_DEV tokens
+              run: |
+                  if [ -z "${{ secrets.PUB_DEV_ACCESS_TOKEN }}" ]; then
+                    echo "警告: PUB_DEV_ACCESS_TOKEN 未设置"
+                    echo "::error::缺少 PUB_DEV_ACCESS_TOKEN"
+                    MISSING_SECRETS=1
+                  else
+                    echo "✅ PUB_DEV_ACCESS_TOKEN 已设置"
+                  fi
+
+                  if [ -z "${{ secrets.PUB_DEV_REFRESH_TOKEN }}" ]; then
+                    echo "警告: PUB_DEV_REFRESH_TOKEN 未设置"
+                    echo "::error::缺少 PUB_DEV_REFRESH_TOKEN"
+                    MISSING_SECRETS=1
+                  else
+                    echo "✅ PUB_DEV_REFRESH_TOKEN 已设置"
+                  fi
+
+                  if [ -z "${{ secrets.PERSONAL_ACCESS_TOKEN }}" ]; then
+                    echo "警告: PERSONAL_ACCESS_TOKEN 未设置"
+                    echo "::error::缺少 PERSONAL_ACCESS_TOKEN"
+                    MISSING_SECRETS=1
+                  else
+                    echo "✅ PERSONAL_ACCESS_TOKEN 已设置"
+                  fi
+
+                  if [ ! -z "$MISSING_SECRETS" ]; then
+                    echo "请在GitHub仓库设置中添加缺少的密钥"
+                    exit 1
+                  fi
+
+            - name: Check workflow permissions
+              run: |
+                  echo "提示：确保GitHub Actions有足够的权限"
+                  echo "- 在仓库设置中，转到Actions > General"
+                  echo "- 确保'Workflow permissions'设置为'Read and write permissions'"

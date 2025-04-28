@@ -59,6 +59,30 @@ jobs:
             - name: Install dependencies
               run: flutter pub get
 
+            - name: Validate package
+              run: |
+                  echo "验证包是否满足发布要求..."
+                  flutter pub publish --dry-run
+                  if [ $? -ne 0 ]; then
+                    echo "::error::包验证失败，请检查pubspec.yaml和README.md"
+                    exit 1
+                  fi
+                  echo "✅ 包验证成功"
+
+            - name: Debug pub.dev credentials
+              run: |
+                  if [ -z "${{ secrets.PUB_DEV_ACCESS_TOKEN }}" ]; then
+                    echo "::error::未设置PUB_DEV_ACCESS_TOKEN"
+                    exit 1
+                  fi
+
+                  if [ -z "${{ secrets.PUB_DEV_REFRESH_TOKEN }}" ]; then
+                    echo "::error::未设置PUB_DEV_REFRESH_TOKEN"
+                    exit 1
+                  fi
+
+                  echo "已设置pub.dev发布凭证"
+
             - name: Setup Pub Credentials
               run: |
                   mkdir -p $HOME/.config/dart
@@ -72,6 +96,15 @@ jobs:
                   }
                   EOF
 
+                  # 确保文件存在且有正确的权限
+                  if [ -f "$HOME/.config/dart/pub-credentials.json" ]; then
+                    echo "✅ 凭证文件创建成功"
+                    chmod 600 $HOME/.config/dart/pub-credentials.json
+                  else
+                    echo "::error::凭证文件创建失败"
+                    exit 1
+                  fi
+
             - name: Publish to Pub.dev
               run: flutter pub publish --force
 
@@ -84,14 +117,28 @@ jobs:
               with:
                   fetch-depth: 0
 
+            - name: Debug event info
+              run: |
+                  echo "触发事件: ${{ github.event_name }}"
+                  echo "引用: ${{ github.ref }}"
+                  echo "标签: ${GITHUB_REF#refs/tags/}"
+
             - name: Get version from tag
               id: get_version
               run: |
                   if [ "${{ github.event_name }}" = "push" ]; then
                     VERSION=${GITHUB_REF#refs/tags/v}
+                    echo "通过标签获取版本: $VERSION"
                   else
                     VERSION=${{ github.event.inputs.version }}
+                    echo "通过输入获取版本: $VERSION"
                   fi
+
+                  if [ -z "$VERSION" ]; then
+                    echo "::error::无法确定版本号"
+                    exit 1
+                  fi
+
                   echo "VERSION=$VERSION" >> $GITHUB_ENV
                   echo "version=$VERSION" >> $GITHUB_OUTPUT
 

@@ -115,7 +115,7 @@ class _StorageDemoState extends State<StorageDemo> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('KY Storage Demo')),
+      appBar: AppBar(title: const Text('Kysion Storage Demo')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

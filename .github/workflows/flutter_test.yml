@@ -1,0 +1,87 @@
+name: Flutter Test
+
+on:
+    push:
+        branches: [main, master, develop]
+    pull_request:
+        branches: [main, master, develop]
+
+jobs:
+    test:
+        name: Flutter Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.19.0'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: flutter pub get
+
+            - name: Run tests
+              run: flutter test --coverage
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v3
+              with:
+                  file: coverage/lcov.info
+                  fail_ci_if_error: true
+                  verbose: true
+
+            - name: Static Analysis
+              run: flutter analyze
+
+    build-android:
+        name: Build Android Example
+        runs-on: ubuntu-latest
+        needs: test
+        if: github.event_name == 'push'
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.19.0'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: |
+                  cd example
+                  flutter pub get
+
+            - name: Build APK
+              run: |
+                  cd example
+                  flutter build apk --release
+
+    build-ios:
+        name: Build iOS Example
+        runs-on: macos-latest
+        needs: test
+        if: github.event_name == 'push'
+
+        steps:
+            - uses: actions/checkout@v3
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.19.0'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: |
+                  cd example
+                  flutter pub get
+
+            - name: Build iOS
+              run: |
+                  cd example
+                  flutter build ios --release --no-codesign

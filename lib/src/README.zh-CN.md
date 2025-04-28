@@ -19,7 +19,7 @@
 
 Storage模块采用分层架构设计，实现了高度的可扩展性和可测试性：
 
-```
+```txt
 interfaces.dart   ← 定义接口和类型
     ↑
     ├── models.dart       ← 数据模型

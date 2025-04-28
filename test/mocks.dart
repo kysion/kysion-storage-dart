@@ -1,11 +1,9 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:kysion_storage/kysion_storage.dart';
-import 'package:mockito/annotations.dart';
 import 'package:mockito/mockito.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 生成mock类
-@GenerateMocks([Box])
+// 手动定义模拟类
 class MockBox<T> extends Mock implements Box<T> {}
 
 // SharedPreferences的模拟实现

@@ -12,12 +12,13 @@ jobs:
         runs-on: ubuntu-latest
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
             - name: Set up Flutter
               uses: subosito/flutter-action@v2
               with:
-                  flutter-version: '3.19.0'
+                  flutter-version: '3.29.3'
+                  dart-version: '3.4.0'
                   channel: 'stable'
 
             - name: Install dependencies
@@ -27,7 +28,7 @@ jobs:
               run: flutter test --coverage
 
             - name: Upload coverage to Codecov
-              uses: codecov/codecov-action@v3
+              uses: codecov/codecov-action@v4
               with:
                   file: coverage/lcov.info
                   fail_ci_if_error: true
@@ -43,12 +44,13 @@ jobs:
         if: github.event_name == 'push'
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
             - name: Set up Flutter
               uses: subosito/flutter-action@v2
               with:
-                  flutter-version: '3.19.0'
+                  flutter-version: '3.29.3'
+                  dart-version: '3.4.0'
                   channel: 'stable'
 
             - name: Install dependencies
@@ -68,12 +70,13 @@ jobs:
         if: github.event_name == 'push'
 
         steps:
-            - uses: actions/checkout@v3
+            - uses: actions/checkout@v4
 
             - name: Set up Flutter
               uses: subosito/flutter-action@v2
               with:
-                  flutter-version: '3.19.0'
+                  flutter-version: '3.29.3'
+                  dart-version: '3.4.0'
                   channel: 'stable'
 
             - name: Install dependencies

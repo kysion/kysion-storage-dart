@@ -101,3 +101,65 @@ jobs:
               run: |
                   cd example
                   flutter build ios --release --no-codesign
+
+    build-macos:
+        name: Build macOS Example
+        runs-on: macos-latest
+        needs: test
+        if: github.event_name == 'push'
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Dart SDK
+              uses: dart-lang/setup-dart@v1
+              with:
+                  sdk: '3.4.0'
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.29.3'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: |
+                  cd example
+                  flutter pub get
+
+            - name: Build macOS
+              run: |
+                  cd example
+                  flutter config --enable-macos-desktop
+                  flutter build macos --release
+
+    build-windows:
+        name: Build Windows Example
+        runs-on: windows-latest
+        needs: test
+        if: github.event_name == 'push'
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Dart SDK
+              uses: dart-lang/setup-dart@v1
+              with:
+                  sdk: '3.4.0'
+
+            - name: Set up Flutter
+              uses: subosito/flutter-action@v2
+              with:
+                  flutter-version: '3.29.3'
+                  channel: 'stable'
+
+            - name: Install dependencies
+              run: |
+                  cd example
+                  flutter pub get
+
+            - name: Build Windows
+              run: |
+                  cd example
+                  flutter config --enable-windows-desktop
+                  flutter build windows --release

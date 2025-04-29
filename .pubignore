@@ -1,0 +1,25 @@
+# Dart specific
+.dart_tool/
+.packages
+pubspec.lock
+
+# Test related
+coverage/
+.test_coverage.dart
+test/*.mocks.dart
+
+# IDE specific
+.idea/
+.vscode/
+
+# Build artifacts
+build/
+
+# Example app build artifacts
+example/build/
+example/.dart_tool/
+example/.packages
+example/pubspec.lock
+
+# CI/CD
+.github/ 

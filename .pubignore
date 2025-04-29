@@ -1,25 +1,50 @@
-# Dart specific
+# Dart/Flutter specific
 .dart_tool/
+.dart_tool/**
 .packages
+.pub/
 pubspec.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+*.mocks.dart
+**/*.g.dart
+**/*.freezed.dart
+**/*.gr.dart
+**/*.transitive_digest
+build/
 
-# Test related
+# Coverage and test data
 coverage/
-.test_coverage.dart
-test/*.mocks.dart
+test/.test_coverage.dart
+test/**/*.mocks.dart
 
 # IDE specific
 .idea/
 .vscode/
+*.iml
+*.log
 
-# Build artifacts
-build/
+# Example app and demos
+example/**
+!example/lib/main.dart
+!example/README.md
+!example/pubspec.yaml
 
-# Example app build artifacts
-example/build/
-example/.dart_tool/
-example/.packages
-example/pubspec.lock
+# Internal documentation
+docs/
+doc/internal/
 
-# CI/CD
-.github/ 
+# Development tools
+tool/
+.github/
+
+# Version control
+.git/
+.gitignore
+
+# Other
+.DS_Store
+*.swp
+*.bak
+.project
+.classpath 

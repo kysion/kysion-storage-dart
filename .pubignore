@@ -15,8 +15,11 @@ build/
 
 # Coverage and test data
 coverage/
+coverage/lcov.info
+lcov.info
 test/.test_coverage.dart
 test/**/*.mocks.dart
+test/generate_mocks.mocks.dart
 
 # IDE specific
 .idea/
@@ -26,6 +29,7 @@ test/**/*.mocks.dart
 
 # Example app and demos
 example/**
+example/pubspec.lock
 !example/lib/main.dart
 !example/README.md
 !example/pubspec.yaml

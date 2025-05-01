@@ -41,6 +41,12 @@ class KysionStorageService implements IKysionStorageService {
   /// 服务标识符
   String identifier = "kysion_storage";
 
+  /// 上一次使用的标识符
+  String? _lastIdentifier;
+
+  /// 初始化是否正在进行中
+  bool _initializing = false;
+
   /// 加密服务
   final IEncryptionService _encryptionService;
 
@@ -50,16 +56,29 @@ class KysionStorageService implements IKysionStorageService {
   /// 获取实例（单例模式）
   static KysionStorageService get instance {
     _instance ??= KysionStorageService._();
+    // 自动初始化处理
+    _instance!._ensureInitializedAsync();
     return _instance!;
   }
 
   /// 私有构造函数
-  KysionStorageService._() : _encryptionService = EncryptionService.instance;
+  KysionStorageService._() : _encryptionService = EncryptionService.instance {
+    _lastIdentifier = identifier;
+  }
 
   /// 创建实例，支持可选的标识符
   factory KysionStorageService({String identifier = "kysion_storage"}) {
-    _instance ??= KysionStorageService._();
-    _instance!.identifier = identifier;
+    if (_instance == null) {
+      _instance = KysionStorageService._();
+      _instance!.identifier = identifier;
+      _instance!._lastIdentifier = identifier;
+      // 自动初始化
+      _instance!._ensureInitializedAsync();
+    } else if (_instance!.identifier != identifier) {
+      // 标识符变更，触发重新初始化
+      _instance!.identifier = identifier;
+      _instance!._reinitialize();
+    }
     return _instance!;
   }
 
@@ -79,6 +98,7 @@ class KysionStorageService implements IKysionStorageService {
   @visibleForTesting
   void markInitialized() {
     _initialized = true;
+    _lastIdentifier = identifier;
   }
 
   /// 创建构建器，用于链式调用
@@ -88,6 +108,9 @@ class KysionStorageService implements IKysionStorageService {
     Duration? expiresIn,
     KysionSecurityLevel? securityLevel,
   }) {
+    // 确保已初始化
+    _ensureInitializedAsync();
+
     return StorageBuilder(
       this,
       KysionStorageOptions(
@@ -98,14 +121,52 @@ class KysionStorageService implements IKysionStorageService {
     );
   }
 
+  /// 检查是否需要重新初始化
+  bool _needsReinitialize() {
+    return _lastIdentifier != identifier;
+  }
+
+  /// 标识符变更时重新初始化
+  Future<void> _reinitialize() async {
+    if (!_needsReinitialize()) return;
+
+    developer.log('标识符已变更，从 $_lastIdentifier 到 $identifier，正在重新初始化',
+        name: _logTag);
+
+    // 如果已初始化，先释放资源
+    if (_initialized) {
+      await dispose();
+    }
+
+    _initialized = false;
+    await init();
+  }
+
+  /// 自动确保服务已初始化（异步方式）
+  void _ensureInitializedAsync() {
+    if (!_initialized && !_initializing) {
+      _initializing = true;
+      Future.microtask(() async {
+        try {
+          await init();
+        } catch (e) {
+          developer.log('自动初始化失败: $e', name: _logTag, error: e);
+        } finally {
+          _initializing = false;
+        }
+      });
+    }
+  }
+
   /// 初始化存储服务
   @override
   Future<void> init() async {
-    if (_initialized) {
+    if (_initialized && !_needsReinitialize()) {
       developer.log('StorageService已经初始化', name: _logTag);
       return;
     }
 
+    _initializing = true;
     try {
       WidgetsFlutterBinding.ensureInitialized();
 
@@ -114,17 +175,30 @@ class KysionStorageService implements IKysionStorageService {
 
       // 初始化Hive
       await Hive.initFlutter();
-      _box = await Hive.openBox(_boxName);
-      _metaBox = await Hive.openBox(_metaBoxName);
+
+      // 使用标识符创建唯一的盒子名称
+      final String boxName = '${_boxName}_$identifier';
+      final String metaBoxName = '${_metaBoxName}_$identifier';
+
+      // 关闭现有盒子（如果存在）
+      await _box?.close();
+      await _metaBox?.close();
+
+      // 创建盒子
+      _box = await Hive.openBox(boxName);
+      _metaBox = await Hive.openBox(metaBoxName);
 
       // 加载键引擎映射
       await _loadKeyEngineMap();
 
       _initialized = true;
-      developer.log('StorageService初始化成功', name: _logTag);
+      _lastIdentifier = identifier;
+      developer.log('StorageService初始化成功，标识符: $identifier', name: _logTag);
     } catch (e) {
       developer.log('StorageService初始化失败: $e', name: _logTag, error: e);
       throw StorageInitException('初始化失败', e);
+    } finally {
+      _initializing = false;
     }
   }
 
@@ -133,6 +207,7 @@ class KysionStorageService implements IKysionStorageService {
     if (_metaBox == null) return;
 
     try {
+      _keyEngineMap.clear();
       final keys = _metaBox!.keys;
       for (var key in keys) {
         final recordJson = _metaBox!.get(key);
@@ -152,7 +227,15 @@ class KysionStorageService implements IKysionStorageService {
   /// 确保服务已初始化
   void _ensureInitialized() {
     if (!_initialized) {
-      throw StorageException('存储服务尚未初始化，请先调用init()');
+      if (_initializing) {
+        throw StorageException('存储服务正在初始化中，请稍后再试');
+      } else {
+        throw StorageException('存储服务尚未初始化，请先调用init()');
+      }
+    }
+
+    if (_needsReinitialize()) {
+      throw StorageException('标识符已变更，需要重新初始化');
     }
   }
 
@@ -197,14 +280,20 @@ class KysionStorageService implements IKysionStorageService {
   Future<bool> set<T>(String key, T value,
       [KysionStorageOptions? options]) async {
     options ??= const KysionStorageOptions();
+
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
+
     return _set(key, value, options);
   }
 
   /// 内部存储实现
   Future<bool> _set<T>(
       String key, T value, KysionStorageOptions options) async {
-    _ensureInitialized();
-
     final engine = _selectEngine(value, options);
 
     try {
@@ -261,6 +350,13 @@ class KysionStorageService implements IKysionStorageService {
     T? defaultValue,
     FromJson<T>? fromJson,
   }) async {
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
+
     return await _get(key, defaultValue: defaultValue, fromJson: fromJson);
   }
 
@@ -270,8 +366,6 @@ class KysionStorageService implements IKysionStorageService {
     T? defaultValue,
     FromJson<T>? fromJson,
   }) async {
-    _ensureInitialized();
-
     try {
       // 查找键存储在哪个引擎中
       final engineName = _keyEngineMap[key];
@@ -368,7 +462,12 @@ class KysionStorageService implements IKysionStorageService {
   /// 检查键是否存在
   @override
   Future<bool> has(String key) async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     final engineName = _keyEngineMap[key];
     if (engineName != null) {
@@ -386,7 +485,12 @@ class KysionStorageService implements IKysionStorageService {
   /// 移除数据
   @override
   Future<bool> remove(String key) async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     bool result = true;
     final engineName = _keyEngineMap[key];
@@ -422,7 +526,12 @@ class KysionStorageService implements IKysionStorageService {
 
   /// 只从SharedPreferences移除
   Future<bool> removeFromPrefs(String key) async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     try {
       final result = await _prefs?.remove(key) ?? false;
@@ -445,7 +554,12 @@ class KysionStorageService implements IKysionStorageService {
 
   /// 只从Hive移除
   Future<bool> removeFromHive(String key) async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     try {
       await _box?.delete(key);
@@ -465,7 +579,12 @@ class KysionStorageService implements IKysionStorageService {
   /// 清除所有数据
   @override
   Future<bool> clear() async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     try {
       await clearPrefs();
@@ -482,7 +601,12 @@ class KysionStorageService implements IKysionStorageService {
 
   /// 只清除SharedPreferences
   Future<bool> clearPrefs() async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     try {
       final result = await _prefs?.clear() ?? false;
@@ -507,7 +631,12 @@ class KysionStorageService implements IKysionStorageService {
 
   /// 只清除Hive
   Future<bool> clearHive() async {
-    _ensureInitialized();
+    // 确保已初始化
+    if (!_initialized && !_initializing) {
+      await init();
+    } else {
+      _ensureInitialized();
+    }
 
     try {
       await _box?.clear();

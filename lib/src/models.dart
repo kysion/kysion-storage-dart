@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'interfaces.dart';
 
 /// 数据包装类，包含数据本身和元数据（如过期时间）
-class StorageItem<T> implements IKysionSerializable {
+class StorageItem<T> extends IStorageSerializable {
   /// 实际存储的数据
   final T data;
 
@@ -31,17 +31,12 @@ class StorageItem<T> implements IKysionSerializable {
   @override
   Map<String, dynamic> toMap() {
     return {
-      'data': data is IKysionSerializable
-          ? (data as IKysionSerializable).toMap()
+      'data': data is IStorageSerializable
+          ? (data as IStorageSerializable).toMap()
           : data,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'expiresInSeconds': expiresInSeconds,
     };
-  }
-
-  /// 将对象转换为JSON字符串
-  String toJson() {
-    return json.encode(toMap());
   }
 
   /// 从Map创建StorageItem

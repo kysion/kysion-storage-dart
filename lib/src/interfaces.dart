@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'options.dart';
 
 /// 从JSON数据创建对象的函数类型
@@ -67,15 +69,33 @@ abstract class IKysionStorageBuilder {
 }
 
 /// 可序列化对象接口
-abstract class IKysionSerializable {
+abstract class IStorageSerializable {
+  /// 转换为JSON字符串
+  String toJson() {
+    return json.encode(toMap());
+  }
+
   /// 转换为Map
   Map<String, dynamic> toMap();
 
+  /// 解析JSON字符串
+  Map<String, dynamic> parseJson(String jsonString) {
+    return json.decode(jsonString);
+  }
+
   /// 从Map创建
-  static T fromMap<T extends IKysionSerializable>(
+  static T fromMap<T extends IStorageSerializable>(
     Map<String, dynamic> map,
     Function factory,
   ) {
     return factory(map) as T;
+  }
+
+  /// 从JSON字符串创建对象
+  static T fromJson<T extends IStorageSerializable>(
+    String jsonString,
+    Function factory,
+  ) {
+    return factory(json.decode(jsonString)) as T;
   }
 }

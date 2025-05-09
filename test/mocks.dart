@@ -132,7 +132,7 @@ class MockHiveBox extends Mock implements Box<dynamic> {
 }
 
 // 测试用序列化对象类
-class TestUser implements IKysionSerializable {
+class TestUser extends IStorageSerializable {
   final int id;
   final String name;
 

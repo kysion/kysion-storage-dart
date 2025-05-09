@@ -20,5 +20,5 @@ export 'src/interfaces.dart'
     show
         IKysionStorageService,
         IKysionStorageBuilder,
-        IKysionSerializable,
+        IStorageSerializable,
         FromJson;

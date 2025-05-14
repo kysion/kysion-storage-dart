@@ -55,10 +55,7 @@ class KysionStorageService implements IKysionStorageService {
 
   /// 获取实例（单例模式）
   static KysionStorageService get instance {
-    _instance ??= KysionStorageService._();
-    // 自动初始化处理
-    _instance!._ensureInitializedAsync();
-    return _instance!;
+    return _instance ??= KysionStorageService._();
   }
 
   /// 私有构造函数
@@ -72,13 +69,13 @@ class KysionStorageService implements IKysionStorageService {
       _instance = KysionStorageService._();
       _instance!.identifier = identifier;
       _instance!._lastIdentifier = identifier;
-      // 自动初始化
-      _instance!._ensureInitializedAsync();
     } else if (_instance!.identifier != identifier) {
       // 标识符变更，触发重新初始化
       _instance!.identifier = identifier;
       _instance!._reinitialize();
     }
+    // 自动初始化
+    _instance!._ensureInitializedAsync();
     return _instance!;
   }
 
@@ -191,10 +188,13 @@ class KysionStorageService implements IKysionStorageService {
       // 加载键引擎映射
       await _loadKeyEngineMap();
 
+      debugPrint("初始化成功123");
+
       _initialized = true;
       _lastIdentifier = identifier;
       developer.log('StorageService初始化成功，标识符: $identifier', name: _logTag);
     } catch (e) {
+      debugPrint("初始化失败123: $e");
       developer.log('StorageService初始化失败: $e', name: _logTag, error: e);
       throw StorageInitException('初始化失败', e);
     } finally {
@@ -336,8 +336,10 @@ class KysionStorageService implements IKysionStorageService {
         await _recordKeyEngine(key, engine);
       }
 
+      debugPrint('存储数据成功 engine: $engine [key=$key]: name: $_logTag $result');
       return result;
     } catch (e) {
+      debugPrint('存储数据失败 [key=$key]: name: $_logTag $e');
       developer.log('存储数据失败 [key=$key]: $e', name: _logTag, error: e);
       return false;
     }
@@ -366,84 +368,148 @@ class KysionStorageService implements IKysionStorageService {
     T? defaultValue,
     FromJson<T>? fromJson,
   }) async {
+    String? rawData;
+
     try {
       // 查找键存储在哪个引擎中
       final engineName = _keyEngineMap[key];
-
-      String? rawData;
 
       // 如果知道引擎，直接从对应引擎读取
       if (engineName != null) {
         if (engineName == 'prefs') {
           rawData = _prefs?.getString(key);
+
+          debugPrint('尝试加载：$key, $rawData');
+
+          if (rawData == null) {
+            debugPrint('尝试加载：flutter.$key');
+            rawData = _prefs?.getString('flutter.$key') ?? null;
+          }
+          return _parseData<T>(
+            key,
+            rawData,
+            defaultValue: defaultValue,
+            fromJson: fromJson,
+          );
         } else if (engineName == 'hive') {
           rawData = _box?.get(key) as String?;
+
+          return _parseData<T>(
+            key,
+            rawData,
+            defaultValue: defaultValue,
+            fromJson: fromJson,
+          );
         }
       } else {
         // 如果不知道引擎，先尝试从SharedPreferences读取
         rawData = _prefs?.getString(key);
+
+        if (rawData == null) {
+          debugPrint('尝试加载：flutter.$key');
+          rawData = _prefs?.getString('flutter.$key') ?? null;
+        }
 
         // 如果SharedPreferences没有，尝试从Hive读取
         if (rawData == null) {
           rawData = _box?.get(key) as String?;
           if (rawData != null) {
             _keyEngineMap[key] = 'hive';
+            return _parseData<T>(
+              key,
+              rawData,
+              defaultValue: defaultValue,
+              fromJson: fromJson,
+            );
           }
         } else {
           _keyEngineMap[key] = 'prefs';
+
+          return _parseData<T>(
+            key,
+            rawData,
+            defaultValue: defaultValue,
+            fromJson: fromJson,
+          );
         }
       }
 
       if (rawData == null) {
+        debugPrint('rawData = $rawData');
         return defaultValue;
       }
 
-      // 尝试解析为StorageItem
-      try {
-        // 先尝试作为JSON解析
-        dynamic decodedData = rawData;
-
-        try {
-          // 检查是否需要解密
-          if (_isEncryptedData(rawData)) {
-            // 先使用中等安全级别尝试解密
-            decodedData = await _encryptionService.decrypt(
-              rawData,
-              KysionSecurityLevel.medium,
-            );
-          }
-
-          final item = StorageItem<T>.fromJson(decodedData);
-
-          // 检查是否过期
-          if (item.isExpired) {
-            await remove(key);
-            return defaultValue;
-          }
-
-          final data = item.data;
-
-          // 如果数据是Map且提供了fromJson函数，则将Map转为对象
-          if (data is Map<String, dynamic> && fromJson != null) {
-            return fromJson(data);
-          }
-
-          return data as T?;
-        } catch (e) {
-          // 如果解析失败，可能是旧数据，直接返回
-          if (rawData is T) {
-            return rawData as T;
-          }
-        }
-      } catch (e) {
-        developer.log('读取数据解析错误 [key=$key]: $e', name: _logTag, error: e);
-      }
-
-      return defaultValue;
+      return _parseData<T>(
+        key,
+        rawData,
+        defaultValue: defaultValue,
+        fromJson: fromJson,
+      );
     } catch (e) {
       developer.log('读取数据失败 [key=$key]: $e', name: _logTag, error: e);
       return defaultValue;
     }
+  }
+
+  Future<T?> _parseData<T>(
+    String key,
+    String? rawData, {
+    T? defaultValue,
+    FromJson<T>? fromJson,
+  }) async {
+    debugPrint('参数：$key, $rawData');
+
+    if (rawData == null) {
+      return defaultValue;
+    }
+
+    // 尝试解析为StorageItem
+    try {
+      // 先尝试作为JSON解析
+      dynamic decodedData;
+
+      try {
+        // 检查是否需要解密
+        if (_isEncryptedData(rawData)) {
+          // 先使用中等安全级别尝试解密
+          decodedData = await _encryptionService.decrypt(
+            rawData,
+            KysionSecurityLevel.medium,
+          );
+        }
+
+        final item = StorageItem<dynamic>.fromJson(decodedData ?? rawData);
+
+        // 检查是否过期
+        if (item.isExpired) {
+          await remove(key);
+          return defaultValue;
+        }
+
+        final data = item.data;
+
+        // 如果数据是Map且提供了fromJson函数，则将Map转为对象
+        if (data is Map<String, dynamic> && fromJson != null) {
+          return fromJson(data);
+        }
+
+        if (data is String && fromJson != null) {
+          return fromJson(json.decode(data)) ?? defaultValue;
+        }
+
+        return data as T?;
+      } catch (e) {
+        debugPrint('解析失败：$e');
+
+        // 如果解析失败，可能是旧数据，直接返回
+        if (rawData is T) {
+          return rawData as T;
+        }
+      }
+    } catch (e) {
+      developer.log('读取数据解析错误 [key=$key]: $e', name: _logTag, error: e);
+    }
+    return defaultValue;
   }
 
   /// 判断数据是否被加密

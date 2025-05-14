@@ -50,8 +50,13 @@ class StorageItem<T> extends IStorageSerializable {
 
   /// 从JSON字符串创建StorageItem
   factory StorageItem.fromJson(String jsonString) {
-    final map = json.decode(jsonString) as Map<String, dynamic>;
-    return StorageItem.fromMap(map);
+    final map = json.decode(jsonString);
+
+    if (map is Map) {
+      return StorageItem.fromMap(map as Map<String, dynamic>);
+    }
+
+    return StorageItem(data: map as T);
   }
 }
 
